@@ -475,6 +475,7 @@
 <div class="tabs">
   <button class="tab-btn active" onclick="switchTab('matrice', this)">Matrice Rischi</button>
   <button class="tab-btn" onclick="switchTab('bignami', this)">Prontuario DPI</button>
+  <button class="tab-btn" onclick="switchTab('verifica', this)">⏱ Verifica DPI</button>
 </div>
 
 <!-- ═══ MATRICE ═══ -->
@@ -818,5 +819,340 @@ function switchTab(id, btn) {
 buildGrid();
 buildBignami();
 </script>
+
+<!-- ═══ VERIFICA DPI ═══ -->
+<div id="sec-verifica" class="section">
+  <div class="sec-header">
+    <span class="sec-title">Verifica & Durata DPI</span>
+  </div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;">Riepilogo delle scadenze e delle modalità di verifica per ogni DPI in dotazione, secondo le indicazioni del fabbricante e le disposizioni del Preposto.</p>
+  <div id="verifica-grid" class="verifica-grid"></div>
+</div>
+
+<style>
+/* ── VERIFICA DPI ── */
+.verifica-grid {
+  display: grid;
+  gap: 14px;
+}
+.vcard {
+  background: var(--graphite);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.vcard:hover { border-color: var(--mid); transform: translateY(-1px); }
+.vcard-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  cursor: pointer;
+}
+.vcard-icon {
+  width: 46px; height: 46px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.vcard-main { flex: 1; min-width: 0; }
+.vcard-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--white);
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+.vcard-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.vbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.vbadge-dur { background: rgba(45,140,240,0.12); color: #6BB8F5; border: 1px solid rgba(45,140,240,0.25); }
+.vbadge-ver { background: rgba(58,184,123,0.12); color: #5DD6A0; border: 1px solid rgba(58,184,123,0.25); }
+.vbadge-warn { background: rgba(232,133,42,0.12); color: #F5A84A; border: 1px solid rgba(232,133,42,0.25); }
+.vcard-chevron { color: var(--muted); font-size: 20px; transition: transform 0.25s; flex-shrink: 0; }
+.vcard.open .vcard-chevron { transform: rotate(90deg); }
+.vcard-body {
+  display: none;
+  border-top: 1px solid var(--line);
+  padding: 16px;
+  gap: 14px;
+}
+.vcard.open .vcard-body { display: grid; }
+.vinfo-block { }
+.vinfo-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.vinfo-label.dur { color: #6BB8F5; }
+.vinfo-label.ver { color: #5DD6A0; }
+.vinfo-value {
+  font-size: 13px;
+  color: var(--white);
+  line-height: 1.6;
+  opacity: 0.9;
+}
+.dur-bar-wrap {
+  margin-top: 10px;
+  background: var(--steel);
+  border-radius: 4px;
+  height: 6px;
+  overflow: hidden;
+  width: 100%;
+}
+.dur-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #2D8CF0, #3AB87B);
+}
+.vcard-category-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 16px;
+  background: var(--steel);
+  border-bottom: 1px solid var(--line);
+}
+
+@media (min-width: 600px) {
+  .vcard-body { grid-template-columns: 1fr 1fr; }
+}
+</style>
+
+<script>
+const verificaDpi = [
+  {
+    cat: "🧤 Guanti",
+    items: [
+      {
+        icon: "🧤", iconBg: "rgba(58,184,123,0.12)", iconColor: "#3AB87B",
+        name: "Guanti da lavoro",
+        durLabel: "Nessuna limitazione temporale",
+        durVal: "Nessun limite fisso — dipende dall'usura d'impiego.",
+        verLabel: "Verifica annuale Preposto",
+        verVal: "Verifica annuale a cura del Preposto. Non necessita revisione FORNITORE.",
+        durYears: 0
+      },
+      {
+        icon: "⚡", iconBg: "rgba(245,166,35,0.12)", iconColor: "#F5A623",
+        name: "Guanti dielettrici Classe 00",
+        durLabel: "Validità in funzione delle verifiche",
+        durVal: "Nessuna data di scadenza fissa. Validità determinata dagli esiti delle verifiche periodiche.",
+        verLabel: "Ogni 3-6 mesi + test",
+        verVal: "Verifica ogni 6 mesi. Se uso frequente: ogni 3 mesi. Test secondo nota informativa. Guanti in magazzino/uso occasionale: test entro 12 mesi dalla data di fabbricazione.",
+        durYears: 0
+      },
+      {
+        icon: "⚡", iconBg: "rgba(245,166,35,0.12)", iconColor: "#F5A623",
+        name: "Guanti dielettrici Classe 0",
+        durLabel: "Validità in funzione delle verifiche",
+        durVal: "Nessuna data di scadenza fissa. Validità determinata dagli esiti delle verifiche periodiche.",
+        verLabel: "Ogni 3-6 mesi + test",
+        verVal: "Verifica ogni 6 mesi. Se uso frequente: ogni 3 mesi. Test secondo nota informativa. Guanti in magazzino/uso occasionale: test entro 12 mesi dalla data di fabbricazione.",
+        durYears: 0
+      },
+      {
+        icon: "🧤", iconBg: "rgba(139,92,246,0.12)", iconColor: "#A78BFA",
+        name: "Guanti in lattice su supporto a maglia",
+        durLabel: "Dipende da conservazione e utilizzo",
+        durVal: "Periodo di validità legato alle condizioni di conservazione e utilizzo.",
+        verLabel: "Verifica annuale Preposto",
+        verVal: "Verifica annuale a cura del Preposto. Non necessita revisione FORNITORE.",
+        durYears: 0
+      },
+      {
+        icon: "🧤", iconBg: "rgba(45,140,240,0.12)", iconColor: "#6BB8F5",
+        name: "Guanti in nitrile",
+        durLabel: "Nessuna limitazione temporale",
+        durVal: "Non soggetto a limitazioni di durata, salvo usura determinata dalle condizioni di impiego.",
+        verLabel: "Verifica annuale Preposto",
+        verVal: "Verifica annuale a cura del Preposto. Non necessita revisione FORNITORE.",
+        durYears: 0
+      },
+      {
+        icon: "🧤", iconBg: "rgba(45,140,240,0.12)", iconColor: "#6BB8F5",
+        name: "Guanti in nitrile monouso",
+        durLabel: "Monouso",
+        durVal: "Utilizzo singolo. Verificare integrità, pulizia e stato del prodotto prima dell'uso. In caso di dubbio: sostituire.",
+        verLabel: "Verifica pre-utilizzo",
+        verVal: "Verificare che il prodotto sia in perfette condizioni, integro e pulito prima di ogni utilizzo. In caso di dubbio: sostituire.",
+        durYears: 0
+      }
+    ]
+  },
+  {
+    cat: "🪖 Protezione Testa & Vista",
+    items: [
+      {
+        icon: "🪖", iconBg: "rgba(232,64,64,0.12)", iconColor: "#E84040",
+        name: "Elmetto",
+        durLabel: "Max 5 anni da fabbricazione / 3 anni da primo uso",
+        durVal: "Validità massima 5 anni dalla data di fabbricazione. In uso: validità 3 anni dal primo utilizzo.",
+        verLabel: "Verifica annuale + manutenzione",
+        verVal: "Verifica annuale del Preposto. Manutenzione secondo foglietto illustrativo. Rispettare limiti di utilizzo.",
+        durYears: 5
+      },
+      {
+        icon: "🥽", iconBg: "rgba(232,133,42,0.12)", iconColor: "#E8852A",
+        name: "Visiera",
+        durLabel: "5 anni totali / 1 anno esterno / 2 anni interno",
+        durVal: "Validità 5 anni totali. Si riduce a 1 anno dopo primo utilizzo esterno e 2 anni dopo primo utilizzo interno.",
+        verLabel: "Verifica annuale + manutenzione",
+        verVal: "Verifica annuale del Preposto. Non necessita revisione annuale, ma manutenzione periodica.",
+        durYears: 5
+      },
+      {
+        icon: "🥽", iconBg: "rgba(58,184,123,0.12)", iconColor: "#3AB87B",
+        name: "Occhiali antischeggia",
+        durLabel: "Max 3 anni / >6 mesi dopo apertura",
+        durVal: "Sostituzione ogni 3 anni. Con idonea manutenzione può essere usato oltre 6 mesi dall'apertura. Sostituire anticipatamente se degradato.",
+        verLabel: "Verifica annuale Preposto",
+        verVal: "Verifica annuale del Preposto. Manutenzione secondo foglietto illustrativo. Rispettare limiti d'utilizzo.",
+        durYears: 3
+      }
+    ]
+  },
+  {
+    cat: "👂 Protezione Uditiva",
+    items: [
+      {
+        icon: "🎧", iconBg: "rgba(139,92,246,0.12)", iconColor: "#A78BFA",
+        name: "Cuffie antirumore (bassa protezione)",
+        durLabel: "3 anni",
+        durVal: "Periodo di validità di 3 anni.",
+        verLabel: "Verifica annuale Preposto",
+        verVal: "Verifica annuale a cura del Preposto. Non necessita revisione FORNITORE.",
+        durYears: 3
+      },
+      {
+        icon: "🎧", iconBg: "rgba(139,92,246,0.12)", iconColor: "#A78BFA",
+        name: "Cuffie antirumore (alta protezione)",
+        durLabel: "Dipende dall'usura d'impiego",
+        durVal: "Validità legata all'usura dettata dalle condizioni di impiego.",
+        verLabel: "Verifica annuale Preposto",
+        verVal: "Verifica annuale a cura del Preposto. Non necessita revisione FORNITORE.",
+        durYears: 0
+      },
+      {
+        icon: "🔇", iconBg: "rgba(139,92,246,0.12)", iconColor: "#A78BFA",
+        name: "Inserti auricolari",
+        durLabel: "3 anni",
+        durVal: "Periodo di validità di 3 anni.",
+        verLabel: "Verifica annuale Preposto",
+        verVal: "Verifica annuale a cura del Preposto. Non necessita revisione FORNITORE.",
+        durYears: 3
+      }
+    ]
+  },
+  {
+    cat: "🦺 Indumenti ad Alta Visibilità",
+    items: [
+      {
+        icon: "🦺", iconBg: "rgba(245,166,35,0.12)", iconColor: "#F5A623",
+        name: "Gilet alta visibilità",
+        durLabel: "Legato a conservazione/utilizzo — no invecchiamento",
+        durVal: "Non soggetto a invecchiamento intrinseco. Validità dipende dalle condizioni di conservazione e utilizzo.",
+        verLabel: "Verifica annuale + manutenzione",
+        verVal: "Verifica annuale del Preposto. Manutenzione secondo foglietto illustrativo. Rispettare limiti d'utilizzo.",
+        durYears: 0
+      },
+      {
+        icon: "👖", iconBg: "rgba(245,166,35,0.12)", iconColor: "#F5A623",
+        name: "Sovrapantalone alta visibilità",
+        durLabel: "Legato a conservazione/utilizzo — no invecchiamento",
+        durVal: "Non soggetto a invecchiamento intrinseco. Validità dipende dalle condizioni di conservazione e utilizzo.",
+        verLabel: "Verifica annuale + manutenzione",
+        verVal: "Verifica annuale del Preposto. Manutenzione secondo foglietto illustrativo. Rispettare limiti d'utilizzo.",
+        durYears: 0
+      }
+    ]
+  },
+  {
+    cat: "🪢 Anticaduta & Lavori in Quota",
+    items: [
+      {
+        icon: "🪢", iconBg: "rgba(232,64,64,0.12)", iconColor: "#E84040",
+        name: "Imbracatura di sicurezza",
+        durLabel: "10 anni (proroga +5 anni con ispezione)",
+        durVal: "Validità consigliata 10 anni, al termine dei quali è richiesta ispezione approfondita da parte del produttore o persona autorizzata, che può prorogare per ulteriori 5 anni.",
+        verLabel: "Verifica annuale Preposto + Ispezione periodica",
+        verVal: "Verifica annuale del Preposto + formazione + addestramento. L'ispezione periodica NON può essere effettuata dall'utilizzatore: deve essere eseguita dal fabbricante o personale autorizzato.",
+        durYears: 10
+      },
+      {
+        icon: "🔗", iconBg: "rgba(232,64,64,0.12)", iconColor: "#E84040",
+        name: "Cordino di posizionamento",
+        durLabel: "Max 5 anni da primo impiego / 7 dalla produzione",
+        durVal: "Validità determinata dalla revisione annuale. Non prolungare oltre 5 anni dalla data di primo impiego e 7 dalla data di produzione marcata sul dispositivo.",
+        verLabel: "Verifica annuale + ispezioni ≤12 mesi",
+        verVal: "Verifica annuale del Preposto + formazione + addestramento. Ispezioni periodiche con intervallo non superiore a 12 mesi, eseguite dal fabbricante o da personale autorizzato (non dall'utilizzatore). Frequenza influenzata da: tipo di dispositivo, frequenza di utilizzo, condizioni ambientali.",
+        durYears: 7
+      }
+    ]
+  }
+];
+
+function buildVerifica() {
+  const grid = document.getElementById('verifica-grid');
+  let html = '';
+  verificaDpi.forEach(group => {
+    html += `<div style="margin-bottom:6px;">
+      <div class="vcard-category-label">${group.cat}</div>
+      <div style="display:grid;gap:10px;margin-top:10px;">`;
+    group.items.forEach((item, i) => {
+      const uid = 'v' + group.cat.replace(/[^a-z]/gi,'') + i;
+      const pct = item.durYears > 0 ? Math.min(100, (item.durYears / 10) * 100) : 0;
+      html += `
+        <div class="vcard" id="${uid}">
+          <div class="vcard-header" onclick="toggleVcard('${uid}')">
+            <div class="vcard-icon" style="background:${item.iconBg}">${item.icon}</div>
+            <div class="vcard-main">
+              <div class="vcard-name">${item.name}</div>
+              <div class="vcard-badges">
+                <span class="vbadge vbadge-dur">⏱ ${item.durLabel}</span>
+              </div>
+            </div>
+            <div class="vcard-chevron">›</div>
+          </div>
+          <div class="vcard-body">
+            <div class="vinfo-block">
+              <div class="vinfo-label dur">⏱ Durata / Scadenza</div>
+              <div class="vinfo-value">${item.durVal}</div>
+              ${item.durYears > 0 ? `<div class="dur-bar-wrap"><div class="dur-bar" style="width:${pct}%"></div></div><div style="font-size:10px;color:var(--muted);margin-top:4px;">${item.durYears} anni di validità massima</div>` : ''}
+            </div>
+            <div class="vinfo-block">
+              <div class="vinfo-label ver">✅ Modalità di Verifica</div>
+              <div class="vinfo-value">${item.verVal}</div>
+            </div>
+          </div>
+        </div>`;
+    });
+    html += '</div></div>';
+  });
+  grid.innerHTML = html;
+}
+
+function toggleVcard(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+buildVerifica();
+</script>
+
 </body>
 </html>
